@@ -460,10 +460,67 @@
             set_category_filter(selectedCategory);
         });
 
-        $('.customer').change(function() {
+        // Customer selection handler - using both class and select2 event
+        $(document).on('change', '.customer, select[name="customer_id"]', function() {
             var selectedCustomerId = $(this).val();
             store_key('customer_id', selectedCustomerId);
+            
+            // Fetch and display customer points
+            if (selectedCustomerId && selectedCustomerId !== '') {
+                fetch_customer_points(selectedCustomerId);
+            } else {
+                $('#customer-point-info').hide();
+                $('#point_payment_li').hide();
+            }
         });
+
+        // Also trigger on select2 change (for AJAX dropdown)
+        $('.js-data-example-ajax').on('select2:select', function (e) {
+            var selectedCustomerId = $(this).val();
+            if (selectedCustomerId && selectedCustomerId !== '') {
+                fetch_customer_points(selectedCustomerId);
+            }
+        });
+
+        // Function to fetch customer points
+        function fetch_customer_points(customerId) {
+            $.ajax({
+                url: "{{ route('admin.pos.get-customer-points') }}",
+                method: 'GET',
+                data: { customer_id: customerId },
+                success: function(response) {
+                    if (response.success) {
+                        // Update global points data
+                        if (typeof customerPointsData !== 'undefined') {
+                            customerPointsData.points = response.points;
+                            customerPointsData.conversion_rate = response.conversion_rate;
+                            customerPointsData.can_use_points = response.can_use_points;
+                        }
+                        
+                        // Display customer points
+                        $('#customer-points').text(response.points);
+                        $('#points-value').text(response.points_value);
+                        $('#customer-point-info').show();
+                        
+                        // Update points required and show/hide payment option
+                        if (typeof window.updatePointsDisplay === 'function') {
+                            window.updatePointsDisplay();
+                        }
+                        
+                        console.log('Customer points loaded:', response.points);
+                    } else {
+                        $('#customer-point-info').hide();
+                        $('#point_payment_li').hide();
+                        console.log('Points not available:', response.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $('#customer-point-info').hide();
+                    $('#point_payment_li').hide();
+                    console.error('Error fetching customer points:', error);
+                }
+            });
+        }
 
         $('.branch').change(function() {
             var selectedBranchId = $(this).val();
@@ -807,6 +864,16 @@
                         CloseButton: true,
                         ProgressBar: true
                     });
+                    
+                    // Re-fetch customer points after item removed
+                    var selectedCustomerId = $('select[name="customer_id"]').val();
+                    if (selectedCustomerId && selectedCustomerId !== '') {
+                        setTimeout(function() {
+                            if (typeof fetch_customer_points === 'function') {
+                                fetch_customer_points(selectedCustomerId);
+                            }
+                        }, 300);
+                    }
                 }
 
             });
@@ -826,6 +893,16 @@
         function updateCart() {
             $.post('<?php echo e(route('admin.pos.cart_items')); ?>', {_token: '<?php echo e(csrf_token()); ?>'}, function (data) {
                 $('#cart').empty().html(data);
+                
+                // Re-fetch customer points after cart update
+                var selectedCustomerId = $('select[name="customer_id"]').val();
+                if (selectedCustomerId && selectedCustomerId !== '') {
+                    setTimeout(function() {
+                        if (typeof fetch_customer_points === 'function') {
+                            fetch_customer_points(selectedCustomerId);
+                        }
+                    }, 300);
+                }
             });
         }
 
@@ -843,6 +920,16 @@
             if (valueCurrent >= minValue) {
                 $.post('{{ route('admin.pos.updateQuantity') }}', {_token: '{{ csrf_token() }}', key: key, quantity:valueCurrent}, function (data) {
                     updateCart();
+                    
+                    // Re-fetch customer points after quantity update
+                    var selectedCustomerId = $('select[name="customer_id"]').val();
+                    if (selectedCustomerId && selectedCustomerId !== '') {
+                        setTimeout(function() {
+                            if (typeof fetch_customer_points === 'function') {
+                                fetch_customer_points(selectedCustomerId);
+                            }
+                        }, 300);
+                    }
                 });
             } else {
                 Swal.fire({
@@ -926,6 +1013,15 @@
                         CloseButton: true,
                         ProgressBar: true
                     });
+                    
+                    // After customer is stored, fetch points
+                    if (key === 'customer_id' && value) {
+                        setTimeout(function() {
+                            if (typeof fetch_customer_points === 'function') {
+                                fetch_customer_points(value);
+                            }
+                        }, 300);
+                    }
                 },
 
             });
@@ -933,6 +1029,14 @@
 
 
         $(document).ready(function (){
+            // Check if customer is already selected on page load
+            var preselectedCustomer = $('select[name="customer_id"]').val();
+            if (preselectedCustomer && preselectedCustomer !== '') {
+                setTimeout(function() {
+                    fetch_customer_points(preselectedCustomer);
+                }, 500);
+            }
+            
             $('#change-branch').on('change', function (){
 
                 $.ajaxSetup({

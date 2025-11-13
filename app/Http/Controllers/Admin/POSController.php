@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\CentralLogics\Helpers;
+use App\CentralLogics\CustomerLogic;
 use App\Http\Controllers\Controller;
 use App\Model\AddOn;
 use App\Model\Admin;
@@ -16,9 +17,12 @@ use App\Model\Order;
 use App\Model\OrderDetail;
 use App\Model\ProductByBranch;
 use App\Model\Table;
+use App\Model\BusinessSetting;
+use App\Model\PointTransitions;
 use App\Models\DeliveryChargeByArea;
 use App\Models\OrderChangeAmount;
 use App\User;
+use Illuminate\Support\Str;
 use Brian2694\Toastr\Facades\Toastr;
 use Carbon\Carbon;
 use Illuminate\Contracts\Foundation\Application;
@@ -423,6 +427,64 @@ class POSController extends Controller
         $distance = 0;
         $areaId = null;
 
+        // Validate point payment if selected
+        if ($request->type == 'point_payment') {
+            $customerId = session()->get('customer_id');
+            
+            if (!$customerId) {
+                Toastr::error(translate('Please select a customer for point payment'));
+                return back();
+            }
+
+            $customer = $this->user->find($customerId);
+            
+            if (!$customer) {
+                Toastr::error(translate('Customer not found'));
+                return back();
+            }
+
+            // Check if loyalty point system is enabled
+            $loyaltyPointStatus = BusinessSetting::where('key', 'loyalty_point_status')->first()->value ?? 0;
+            if ($loyaltyPointStatus != 1) {
+                Toastr::error(translate('Loyalty point payment is currently disabled'));
+                return back();
+            }
+
+            // Get point conversion rate
+            $pointPerCurrency = BusinessSetting::where('key', 'point_per_currency')->first()->value ?? 10;
+            
+            if ($pointPerCurrency <= 0) {
+                Toastr::error(translate('Point conversion rate not configured properly'));
+                return back();
+            }
+
+            // Calculate required points (we'll calculate order total roughly)
+            $cart = session()->get('cart');
+            $subtotal = 0;
+            
+            foreach ($cart as $c) {
+                if (is_array($c)) {
+                    $subtotal += ($c['price']) * $c['quantity'];
+                }
+            }
+            
+            $extraDiscount = session()->get('cart')['extra_discount'] ?? 0;
+            $estimatedTotal = $subtotal - $extraDiscount;
+            $pointsRequired = ceil($estimatedTotal * $pointPerCurrency);
+            
+            // Check if customer has enough points
+            if ($customer->point < $pointsRequired) {
+                $pointsShort = $pointsRequired - $customer->point;
+                $amountEquivalent = number_format($pointsShort / $pointPerCurrency, 2);
+                
+                Toastr::error(translate('Insufficient points') . '. ' . 
+                             translate('Need') . ' ' . $pointsRequired . ' ' . translate('points') . '. ' .
+                             translate('You have') . ' ' . $customer->point . ' ' . translate('points') . ' (' . 
+                             $pointsShort . ' ' . translate('points short') . ')');
+                return back();
+            }
+        }
+
         // store customer address for home delivery
         if ($order_type == 'home_delivery'){
            if (!session()->has('customer_id')){
@@ -616,14 +678,104 @@ class POSController extends Controller
                     $orderChangeAmount->save();
                 }
 
+                // Handle point payment
+                if ($request->type == 'point_payment' && $order->user_id) {
+                    $customer = $this->user->find($order->user_id);
+                    $pointPerCurrency = BusinessSetting::where('key', 'point_per_currency')->first()->value ?? 10;
+                    $orderTotalAmount = $order->order_amount + $order->delivery_charge;
+                    $pointsToDeduct = ceil($orderTotalAmount * $pointPerCurrency);
+
+                    try {
+                        DB::beginTransaction();
+
+                        // Deduct points
+                        $previousPoints = $customer->point;
+                        $customer->point = $customer->point - $pointsToDeduct;
+                        $customer->save();
+
+                        // Create transaction log
+                        $pointTransaction = new PointTransitions();
+                        $pointTransaction->user_id = $customer->id;
+                        $pointTransaction->transaction_id = Str::random(30);
+                        $pointTransaction->reference = $order->id;
+                        $pointTransaction->type = 'point_payment';
+                        $pointTransaction->debit = $pointsToDeduct;
+                        $pointTransaction->credit = 0;
+                        $pointTransaction->amount = $customer->point;
+                        $pointTransaction->description = 'Payment for POS Order #' . $order->id . ' ($' . number_format($orderTotalAmount, 2) . ')';
+                        $pointTransaction->created_at = now();
+                        $pointTransaction->updated_at = now();
+                        $pointTransaction->save();
+
+                        DB::commit();
+
+                        // Store info for display
+                        session(['point_payment_info' => [
+                            'points_deducted' => $pointsToDeduct,
+                            'remaining_points' => $customer->point,
+                            'order_amount' => $orderTotalAmount
+                        ]]);
+
+                    } catch (\Exception $e) {
+                        DB::rollback();
+                        \Log::error('Point Payment Failed: ' . $e->getMessage());
+                    }
+                }
+
+                // Earn loyalty points if customer is selected and order is paid immediately
+                // Take_away: always paid immediately
+                // Dine_in: only if NOT "pay_after_eating"
+                $shouldEarnPoints = false;
+                
+                if ($order->user_id) {
+                    if ($order_type == 'take_away') {
+                        $shouldEarnPoints = true;
+                    } elseif ($order_type == 'dine_in' && $request->type != 'pay_after_eating') {
+                        $shouldEarnPoints = true;
+                    }
+                }
+                
+                if ($shouldEarnPoints) {
+                    try {
+                        $pointResult = CustomerLogic::create_loyalty_point_transaction($order->user_id, $order->id, $order->order_amount, 'order_place');
+                        if ($pointResult) {
+                            \Log::info('Loyalty points earned', [
+                                'order_id' => $order->id,
+                                'user_id' => $order->user_id,
+                                'order_amount' => $order->order_amount
+                            ]);
+                        } else {
+                            \Log::warning('Loyalty points not earned - possible settings issue', [
+                                'order_id' => $order->id,
+                                'user_id' => $order->user_id
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::error('Error earning loyalty points: ' . $e->getMessage(), [
+                            'order_id' => $order->id,
+                            'user_id' => $order->user_id,
+                            'error' => $e->getTraceAsString()
+                        ]);
+                    }
+                }
+
+                // Store customer_id before clearing session
+                $last_customer_id = $order->user_id;
+                
                 session()->forget('cart');
                 session(['last_order' => $order->id]);
-                session()->forget('customer_id');
+                // Don't forget customer_id - keep it selected for next order
+                // session()->forget('customer_id'); // Commented out to keep customer selected
                 session()->forget('branch_id');
                 session()->forget('table_id');
                 session()->forget('people_number');
                 session()->forget('address');
                 session()->forget('order_type');
+                
+                // Restore customer_id so it stays selected
+                if ($last_customer_id) {
+                    session(['customer_id' => $last_customer_id]);
+                }
 
                 Toastr::success(translate('order_placed_successfully'));
 
@@ -830,7 +982,7 @@ class POSController extends Controller
      */
     public function generate_invoice($id): JsonResponse
     {
-        $order = $this->order->where('id', $id)->first();
+        $order = $this->order->with('customer')->where('id', $id)->first();
 
         return response()->json([
             'success' => 1,
@@ -970,6 +1122,48 @@ class POSController extends Controller
 
         Toastr::success(translate('customer added successfully'));
         return back();
+    }
+
+    /**
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function get_customer_points(Request $request): JsonResponse
+    {
+        $customerId = $request->customer_id;
+        
+        if (!$customerId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer ID required'
+            ]);
+        }
+
+        $customer = $this->user->find($customerId);
+        
+        if (!$customer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer not found'
+            ]);
+        }
+
+        // Get point conversion rate
+        $pointPerCurrency = BusinessSetting::where('key', 'point_per_currency')->first()->value ?? 10;
+        $loyaltyPointStatus = BusinessSetting::where('key', 'loyalty_point_status')->first()->value ?? 0;
+        
+        // Calculate points value in currency
+        $pointsValue = $customer->point / $pointPerCurrency;
+
+        return response()->json([
+            'success' => true,
+            'points' => $customer->point,
+            'points_value' => number_format($pointsValue, 2),
+            'conversion_rate' => $pointPerCurrency,
+            'loyalty_point_enabled' => $loyaltyPointStatus == 1,
+            'can_use_points' => $loyaltyPointStatus == 1 && $customer->point > 0,
+            'customer_name' => $customer->f_name . ' ' . $customer->l_name
+        ]);
     }
 
     /**

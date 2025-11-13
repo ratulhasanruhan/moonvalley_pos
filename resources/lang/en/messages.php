@@ -2833,4 +2833,11 @@
   'Table number is already exist in this branch!' => 'Table number is already exist in this branch!',
   'Table capacity is required!' => 'Table capacity is required!',
   'Add_Customer' => 'Add Customer',
+  'point_payment' => 'Point payment',
+  'Available Points' => 'Available Points',
+  'Worth' => 'Worth',
+  'points needed' => 'Points needed',
+  'Loyalty Points' => 'Loyalty Points',
+  'pts' => 'Pts',
+  'Please select a customer for point payment' => 'Please select a customer for point payment',
 );

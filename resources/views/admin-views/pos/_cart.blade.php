@@ -155,6 +155,18 @@
         <form action="{{route('admin.pos.order')}}" id='order_place' method="post">
             @csrf
 
+            <!-- Customer Point Display -->
+            <div id="customer-point-info" class="alert alert-info mb-3" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="tio-star text-warning"></i>
+                        <strong>{{translate('Available Points')}}: <span id="customer-points">0</span></strong>
+                        <small class="d-block">({{translate('Worth')}}: {{Helpers::currency_symbol()}}<span id="points-value">0.00</span>)</small>
+                    </div>
+                    <small class="text-muted"><span id="points-required-display">0</span> {{translate('points needed')}}</small>
+                </div>
+            </div>
+
             <div class="pt-4 mb-4">
                 <div class="text-dark d-flex mb-2">{{translate('Paid_By')}} :</div>
                 <ul class="list-unstyled option-buttons">
@@ -173,6 +185,12 @@
                     <li id="cash_on_delivery_li" style="display: {{ session('order_type') == 'home_delivery' ?  'block' : 'none' }}">
                         <input type="radio" class="paid-by" value="cash_on_delivery" id="cash_on_delivery" name="type" hidden="" {{ session('order_type') == 'home_delivery' ?  'checked' : '' }}>
                         <label for="cash_on_delivery" class="btn btn-bordered px-4 mb-0">{{translate('cash_on_delivery')}}</label>
+                    </li>
+                    <li id="point_payment_li" style="display: none;">
+                        <input type="radio" class="paid-by" value="point_payment" id="point_payment" name="type" hidden="">
+                        <label for="point_payment" class="btn btn-bordered px-4 mb-0">
+                            <i class="tio-star"></i> {{translate('Points')}}
+                        </label>
                     </li>
                 </ul>
             </div>
@@ -302,7 +320,7 @@
             var selectedPaymentOption = $(this).val();
 
             // Toggle collect cash section visibility
-            if (selectedPaymentOption == 'pay_after_eating') {
+            if (selectedPaymentOption == 'pay_after_eating' || selectedPaymentOption == 'point_payment') {
                 $('.collect-cash-section').addClass('d-none');
             } else {
                 $('.collect-cash-section').removeClass('d-none');
@@ -329,4 +347,43 @@
             calculateAmountDifference();
         });
 
+    </script>
+    
+    <script>
+        "use strict";
+        
+        // Global variables for points
+        var customerPointsData = {
+            points: 0,
+            conversion_rate: 10,
+            can_use_points: false
+        };
+
+        // Update points required when cart changes
+        function updatePointsRequired() {
+            if (!customerPointsData.can_use_points) return;
+            
+            let orderTotal = {{ $totalOrderAmount }};
+            let pointsRequired = Math.ceil(orderTotal * customerPointsData.conversion_rate);
+            
+            $('#points-required-display').text(pointsRequired);
+            
+            // Check if customer has enough points
+            if (customerPointsData.points >= pointsRequired) {
+                $('#point_payment_li').show();
+                $('#point_payment').prop('disabled', false);
+            } else {
+                $('#point_payment_li').show();
+                $('#point_payment').prop('disabled', true);
+                $('label[for="point_payment"]').addClass('opacity-50').attr('title', 'Insufficient points');
+            }
+        }
+
+        // Call this when cart is updated (can be triggered from other scripts)
+        window.updatePointsDisplay = updatePointsRequired;
+
+        // On page load, update points if already calculated
+        $(document).ready(function() {
+            updatePointsRequired();
+        });
     </script>

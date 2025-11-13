@@ -103,6 +103,7 @@ Route::group(['namespace' => 'Admin', 'as' => 'admin.'], function () {
             Route::post('table', 'POSController@getTableListByBranch')->name('table');
             Route::get('clear', 'POSController@clear_session_data')->name('clear');
             Route::post('customer-store', 'POSController@customer_store')->name('customer-store');
+            Route::get('get-customer-points', 'POSController@get_customer_points')->name('get-customer-points');
             Route::post('session-destroy', 'POSController@session_destroy')->name('session-destroy');
             Route::post('add-delivery-address', 'POSController@addDeliveryInfo')->name('add-delivery-address');
             Route::get('get-distance', 'POSController@get_distance')->name('get-distance');

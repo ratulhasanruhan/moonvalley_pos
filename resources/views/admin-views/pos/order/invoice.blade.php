@@ -20,13 +20,21 @@
                 {{date('d/M/Y h:i a',strtotime($order['created_at']))}}
             </h5>
         </div>
-        @if($order->customer)
+    </div>
+    
+    @if($order->customer)
+        <div class="row mt-2">
             <div class="col-12">
                 <h5>{{translate('Customer Name')}} : {{$order->customer['f_name'].' '.$order->customer['l_name']}}</h5>
                 <h5>{{translate('Phone')}} : {{$order->customer['phone']}}</h5>
+                @php($loyaltyPointStatus = \App\Model\BusinessSetting::where('key', 'loyalty_point_status')->first()->value ?? 0)
+                @if($loyaltyPointStatus == 1)
+                    <h5>{{translate('Loyalty Points')}} : {{$order->customer['point']}} {{translate('pts')}}</h5>
+                @endif
             </div>
-        @endif
-    </div>
+        </div>
+    @endif
+    
     <h5 class="text-uppercase"></h5>
     <span>--------------------------------------------</span>
     <table class="table table-bordered mt-3 custom-table">

@@ -46,6 +46,7 @@
                                             <option value="">{{translate('all')}}</option>
                                             <option value="loyalty_point_to_wallet" {{isset($transactionStatus) && $transactionStatus=='loyalty_point_to_wallet'?'selected':''}}>{{translate('loyalty_point_to_wallet')}}</option>
                                             <option value="order_place" {{isset($transactionStatus) && $transactionStatus=='order_place'?'selected':''}}>{{translate('order_place')}}</option>
+                                            <option value="point_payment" {{isset($transactionStatus) && $transactionStatus=='point_payment'?'selected':''}}>{{translate('point_payment')}}</option>
                                         </select>
                                     </div>
                                 </div>
@@ -140,7 +141,7 @@
                                 <td>{{$wt->debit}}</td>
                                 <td>{{$wt->amount}}</td>
                                 <td>
-                                    <span class="badge badge-soft-{{$wt->type=='point_to_wallet'?'success':'dark'}}">
+                                    <span class="badge badge-soft-{{$wt->type=='point_to_wallet'?'success':($wt->type=='point_payment'?'danger':'dark')}}">
                                         {{translate($wt->type)}}
                                     </span>
                                 </td>
