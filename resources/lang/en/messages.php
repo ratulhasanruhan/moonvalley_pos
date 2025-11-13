@@ -2832,4 +2832,5 @@
   'Table number is required!' => 'Table number is required!',
   'Table number is already exist in this branch!' => 'Table number is already exist in this branch!',
   'Table capacity is required!' => 'Table capacity is required!',
+  'Add_Customer' => 'Add Customer',
 );

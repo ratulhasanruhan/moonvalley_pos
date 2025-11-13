@@ -34,7 +34,11 @@
                         </div>
                     </form>
 
-                    <div>
+                    <div class="d-flex gap-3">
+                        <button type="button" class="btn btn-primary text-nowrap" data-toggle="modal" data-target="#add-customer">
+                            <i class="tio-add"></i>
+                            {{translate('Add_Customer')}}
+                        </button>
                         <button type="button" class="btn btn-outline-primary text-nowrap" data-toggle="dropdown" aria-expanded="false">
                             <i class="tio-download-to"></i>
                             Export
@@ -142,12 +146,82 @@
                 <div class="modal-content" id="modal-content"></div>
             </div>
         </div>
+
+        <div class="modal fade" id="add-customer" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{translate('Add_New_Customer')}}</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form action="{{route('admin.pos.customer-store')}}" method="post" id="customer-form">
+                            @csrf
+                            <div class="row pl-2">
+                                <div class="col-12 col-lg-6">
+                                    <div class="form-group">
+                                        <label class="input-label">
+                                            {{translate('First_Name')}}
+                                            <span class="input-label-secondary text-danger">*</span>
+                                        </label>
+                                        <input type="text" name="f_name" class="form-control" value="" placeholder="{{translate('First name')}}" required="">
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="form-group">
+                                        <label class="input-label">
+                                            {{translate('Last_Name')}}
+                                            <span class="input-label-secondary text-danger">*</span>
+                                        </label>
+                                        <input type="text" name="l_name" class="form-control" value="" placeholder="{{translate('Last name')}}" required="">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row pl-2">
+                                <div class="col-12 col-lg-6">
+                                    <div class="form-group">
+                                        <label class="input-label">
+                                            {{translate('Email')}}
+                                            <span class="input-label-secondary text-danger">*</span>
+                                        </label>
+                                        <input type="email" name="email" class="form-control" value="" placeholder="{{translate('Ex : ex@example.com')}}" required="">
+                                    </div>
+                                </div>
+                                <div class="col-12 col-lg-6">
+                                    <div class="form-group">
+                                        <label class="input-label">
+                                            {{translate('Phone')}}
+                                            (<span>{{translate('with_country_code')}}</span>)
+                                            <span class="input-label-secondary text-danger">*</span>
+                                        </label>
+                                        <input type="text" name="phone" class="form-control" value="" placeholder="{{translate('Ex : +88017*****')}}" required="">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="reset" class="btn btn-secondary mr-1">{{translate('reset')}}</button>
+                                <button type="submit" class="btn btn-primary">{{translate('Submit')}}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 
 @push('script_2')
     <script>
         "use strict";
+
+        // Auto-open add customer modal if hash is present
+        $(document).ready(function() {
+            if (window.location.hash === '#add-customer') {
+                $('#add-customer').modal('show');
+            }
+        });
 
         function add_point(form_id, route, customer_id) {
             $.ajaxSetup({

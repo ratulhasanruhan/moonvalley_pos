@@ -571,6 +571,12 @@
                                             <span class="text-truncate">{{translate('list')}}</span>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{{route('admin.customer.list')}}#add-customer" onclick="setTimeout(()=>$('#add-customer').modal('show'), 300)">
+                                            <span class="tio-circle nav-indicator-icon"></span>
+                                            <span class="text-truncate">{{translate('Add_Customer')}}</span>
+                                        </a>
+                                    </li>
                                 </ul>
                             </li>
 
