@@ -33,11 +33,47 @@
     </style>
 
     <style type="text/css" media="print">
+        /* Fixed 58mm thermal receipt size for printing */
         @page {
-            size: auto;   /* auto is the initial value */
-            margin: 2px;
+            size: 58mm auto;   /* set width to 58mm, height automatic */
+            margin: 2mm;      /* small printer margins */
         }
 
+        /* Force the printable container to the receipt width and tighten spacing */
+        #printableAreaContent {
+            width: 58mm !important;
+            max-width: 58mm !important;
+            box-sizing: border-box;
+            padding: 2mm !important;
+            margin: 0 auto !important;
+            font-size: 12px !important;
+            color: #000 !important;
+        }
+
+        /* Compact table layout for narrow receipts */
+        #printableAreaContent table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 12px !important;
+        }
+        #printableAreaContent table th,
+        #printableAreaContent table td {
+            padding: 2px 4px !important;
+            border: none !important;
+            vertical-align: top !important;
+        }
+
+        /* Reduce margins of headings and hr lines */
+        #printableAreaContent h2,
+        #printableAreaContent h5,
+        #printableAreaContent p { margin: 0 0 4px 0 !important; padding: 0 !important; }
+        .hr-style-1, .hr-style-2 { margin: 6px 0 !important; }
+
+        /* Hide elements not intended for print (safety) */
+        .non-printable { display: none !important; }
+
+        /* prevent page breaks within the receipt content */
+        #printableAreaContent { page-break-inside: avoid !important; }
     </style>
 @endpush
 
